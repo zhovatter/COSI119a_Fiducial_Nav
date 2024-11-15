@@ -40,6 +40,8 @@ class NavReal:
         Turns the robot to heading `target_yaw` with a base velocity of
         `base_vel`.
         """
+        if target_yaw < 0.05:
+            target_yaw = 2*math.pi #helps it slow down at the appropriate time.
         rate = rospy.Rate(10)
         print(self.cur_yaw)
         #self.cur_yaw = 0 #testing to see if we need to reset
@@ -55,7 +57,9 @@ class NavReal:
             #slows rotation as the target is approached, with a minimum and maximum rotation speed defined.
             print("curr:" ,self.cur_yaw)
             print("target: ", target_yaw)
-            headingTwist.angular.z = max(min(abs(proportion*(target_yaw - self.cur_yaw)) , base_vel) , MIN_TURN_SPEED) 
+            headingTwist.angular.z = max(min(abs(proportion*(target_yaw - self.cur_yaw)) , base_vel) , MIN_TURN_SPEED)
+            # if self.cur_yaw > 6.1 or self.cur_yaw < 0.1:
+            #     headingTwist.angular.z = 0.05
             self.cmd_vel_pub.publish(headingTwist)
             #print(headingTwist)
             while self.cur_yaw == None:
@@ -71,7 +75,7 @@ class NavReal:
         Scans for fiducials by rotating in place. Note that the `mapper` node
         does the actual mapping.
         """
-        self.turn_to_heading(self.headingToRelative(1.95*math.pi), 0.25)
+        self.turn_to_heading(self.headingToRelative(1.98*math.pi), 0.25)
         
         #raise NotImplementedError
 
@@ -92,9 +96,12 @@ class NavReal:
         """
         Rotates the robot so that it faces the target pin.
         """
-    
-        #self.turn_to_heading(self.cur_pin_yaw, 0.2)
-        pass
+        (x, y) = self.get_pin_coords(pin_id)
+        for i in range(100):
+            print("x: ", x, ", y: ", y)
+        target_heading = self.headingToRelative(self.convertNegativeAngles(math.atan2(y, x)))
+        print("pin heading: ", target_heading)
+        self.turn_to_heading(target_heading, 0.3)
         #raise NotImplementedError
 
     def move_to_pin(self, pin_id):
@@ -103,7 +110,7 @@ class NavReal:
         """
         #since my_odom published the distance traveled since the previous odom reading, this method calculates
         # the total distance moved by summing the my_odom values.
-        target_dist = max(0, self.get_dist_to_pin(pin_id) - 0.1) #to avoid crashing
+        target_dist = max(0, self.get_dist_to_pin(pin_id) - 0.25) #to avoid crashing
         dist_moved = 0  
         forwardTwist = Twist()
         forwardTwist.linear.x = FORWARD_SPEED
@@ -142,9 +149,29 @@ class NavReal:
 
         print('hiiiiii', A_to_B_transl)
 
-        dist = np.linalg.norm(np.array([A_to_B_transl.x, A_to_B_transl.y, A_to_B_transl.z,])) #use something less complex
+        dist = math.sqrt(A_to_B_transl.x**2 + A_to_B_transl.y**2) #np.linalg.norm(np.array([A_to_B_transl.x, A_to_B_transl.y, A_to_B_transl.z,])) #use something less complex
         self.cur_pin_dist = dist
         return dist
+
+    def get_pin_coords(self, pin_id):
+        found_transform = False
+        
+        while not found_transform:
+            try:
+                A_to_B_transl = self.tf_buffer.lookup_transform('base_link',f'pin_{pin_id}',rospy.Time()).transform.translation
+                #pin_yaw = A_tf.rotation.z #does this work?
+                #self.cur_pin_yaw = pin_yaw
+                #print("pin yaw:" ,pin_yaw)
+                found_transform = True
+            # C_tfs.transform.rotation = A_tf.rotation
+            # C_tfs.transform.translation = A_to_B_tf.translation
+            # C_tfs.header.stamp = rospy.Time.now()
+            except (
+                tf2_ros.LookupException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.ConnectivityException
+                ): continue
+            return [A_to_B_transl.x, A_to_B_transl.y]
 
     def get_pin_orientation(self, pin_id):
         #self.tf_listener.waitForTransform('/odom',f'fiducial_{pin_id}',rospy.Time(), rospy.Duration(4.0))
@@ -192,7 +219,7 @@ if __name__ == '__main__':
     rospy.init_node('nav_real')
 
     nav = NavReal()
-    #nav.scan_for_fids()
+    nav.scan_for_fids()
     target_pin_ids = [100, 102, 104, 108]#[0, 1, 2, 3]
     for pin_id in target_pin_ids:
         nav.match_pin_rotation(pin_id)
