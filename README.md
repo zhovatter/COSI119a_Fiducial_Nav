@@ -8,7 +8,7 @@ mapper_real.py is then used to map each fiducial with a corresponding fiducial i
 
 nav_real.py first spins around to detect all relevant fiducials (using mapper to acquire the pin TFs), then uses TF lookups to first match the pins rotation, then to face the pin using trigonometry since the pin yaws all match odom, and finally moves the robot toward each pin and stops just in front of it. This process is repeated until all fiducials/pins have been visited. All movements are monitored using the prebuilt my_odom node, which mainly receives data from odom and reformates it for ease of use.
 
-#How to run:
+# How to run:
 
 After bringing up the robot:
 1. Edit the fiducial_len and dictionary parameters in fiducials_real.launch to match whatever type of fiducials you are using
